@@ -1,0 +1,870 @@
+Microsoft (R) Macro Assembler Version 14.00.23918.0	    06/15/16 19:11:58
+AddTwo.asm						     Page 1 - 1
+
+
+				;// file: AddTwo.asm
+				;// brief: RE project main file.
+				;// author: Aleksandra Skrbic(skrbicaleksandra@yahoo.com)
+				;//         Selena Colovic 
+				;// date: 30.05.2016.
+				;// last revision: 15.06.2016.
+				;// description: Dakle u okviru projektnog zadatka trebalo je dozvoliti da korisnik unese ime odgovarajuce playliste sa extenzijom .pls. Zatim se u okviru
+				;//              ovog koda provera validnost uzaznog fajla. Potom se vrsi obrada ulaznog fajla i sve se cuva u izlaznom fajlu sa extenzijom .m3u. Kada je
+				;//              obrada u pitanju, izlazni fajl ima odgovarajucu strukturu zahtevanu u tekstu samog projektnog zadatka.
+
+				;// Includes
+				INCLUDE Irvine32.inc
+			      C ; Include file for Irvine32.lib             (Irvine32.inc)
+			      C 
+			      C ;OPTION CASEMAP:NONE		; optional: make identifiers case-sensitive
+			      C 
+			      C INCLUDE SmallWin.inc		; MS-Windows prototypes, structures, and constants
+			      C .NOLIST
+			      C .LIST
+			      C 
+			      C INCLUDE VirtualKeys.inc
+			      C ; VirtualKeys.inc
+			      C .NOLIST
+			      C .LIST
+			      C 
+			      C 
+			      C .NOLIST
+			      C .LIST
+			      C 
+				INCLUDE macros.inc
+			      C .NOLIST
+			      C .LIST
+			      C 
+
+				;// Declared data
+ = 0000C350			BUFFER_SIZE = 50000
+
+				;// Data section- initialized data
+ 00000000			.data
+ 00000000  0000C350 [		buffer BYTE BUFFER_SIZE DUP(?)                     ;// velicina prvog bafera za ucitavanje ULAZNOG fajla
+	    00
+	   ]
+ 0000C350  0000C350 [		buffer2 BYTE BUFFER_SIZE DUP(?)                    ;// velicina drugog bafera za smestanje obradjenog fajla i ispis u IZLAZNI fajl
+	    00
+	   ]
+ 000186A0 69 6E 69 74 69	srcFilename BYTE "initial_name.pls", 0             ;// ulazno ime fajla se smesta u ovaj string 
+	   61 6C 5F 6E 61
+	   6D 65 2E 70 6C
+	   73 00
+ 000186B1 00000000		fileHandle   HANDLE ?                              ;// handle na izlazni file
+ 000186B5 23 45 58 54 33	startstring BYTE "#EXT3M3U", 0dh, 0ah              ;// string za pomoc u obradi tj. formiranju izlaznog fajla
+	   4D 33 55 0D 0A
+ 000186BF 23 45 58 54 49	extstring BYTE "#EXTINF:"                          ;// string za pomoc u obradi tj. formiranju izlaznog fajla
+	   4E 46 3A
+
+				;// Code segment
+ 00000000			.code
+ 00000000			main PROC
+
+				;// Let user input a filename.
+				mWrite "Enter an input filename: "
+ 000186C7		     1		.data		
+ 000186C7 45 6E 74 65 72     1		??0000 BYTE "Enter an input filename: ",0	
+	   20 61 6E 20 69
+	   6E 70 75 74 20
+	   66 69 6C 65 6E
+	   61 6D 65 3A 20
+	   00
+ 00000000		     1		.code
+ 00000000  52		     1		push	edx
+ 00000001  BA 000186C7 R     1		mov	edx,OFFSET ??0000
+ 00000006  E8 00000000 E     1		call	WriteString
+ 0000000B  5A		     1		pop	edx
+ 0000000C  BA 000186A0 R	mov	edx, OFFSET srcFilename
+ 00000011  B9 00000011		mov	ecx, SIZEOF srcFilename
+ 00000016  E8 00000000 E	call ReadString                                    ;// citamo u srcFilename string tj. ono sto je korisnik uneo kao ime ulaznog fajla .pls extenzija
+
+				;// Open the file for input.
+ 0000001B  2B D2		sub edx, edx
+ 0000001D  BA 000186A0 R	mov	edx, OFFSET srcFilename
+ 00000022  E8 00000000 E	call OpenInputFile
+ 00000027  A3 000186B1 R	mov	fileHandle, eax
+
+				;// Check for errors.
+ 0000002C  83 F8 FF		cmp	eax, INVALID_HANDLE_VALUE                      ;// error opening file ?
+ 0000002F  75 11		jne	file_ok                                        ;// no: skip
+				mWrite <"Cannot open file", 0dh, 0ah>
+ 000186E1		     1		.data		
+ 000186E1 43 61 6E 6E 6F     1		??0001 BYTE "Cannot open file", 0dh, 0ah,0	
+	   74 20 6F 70 65
+	   6E 20 66 69 6C
+	   65 0D 0A 00
+ 00000031		     1		.code
+ 00000031  52		     1		push	edx
+ 00000032  BA 000186E1 R     1		mov	edx,OFFSET ??0001
+ 00000037  E8 00000000 E     1		call	WriteString
+ 0000003C  5A		     1		pop	edx
+ 0000003D  E9 000001B3		jmp	quit                                           ;// and quit
+
+				;// Read the file into a buffer.
+ 00000042			file_ok:
+ 00000042  BA 00000000 R	mov	edx, OFFSET buffer
+ 00000047  B9 0000C350		mov	ecx, BUFFER_SIZE
+ 0000004C  E8 00000000 E	call ReadFromFile
+ 00000051  73 13		jnc	check_buffer_size                              ;// error reading ?
+				mWrite "Error reading file. "                      ;// yes: show error message
+ 000186F4		     1		.data		
+ 000186F4 45 72 72 6F 72     1		??0002 BYTE "Error reading file. ",0	
+	   20 72 65 61 64
+	   69 6E 67 20 66
+	   69 6C 65 2E 20
+	   00
+ 00000053		     1		.code
+ 00000053  52		     1		push	edx
+ 00000054  BA 000186F4 R     1		mov	edx,OFFSET ??0002
+ 00000059  E8 00000000 E     1		call	WriteString
+ 0000005E  5A		     1		pop	edx
+ 0000005F  E8 00000000 E	call WriteWindowsMsg
+ 00000064  EB 50		jmp	close_file
+
+ 00000066			check_buffer_size :
+ 00000066  3D 0000C350		cmp	eax, BUFFER_SIZE                               ;// buffer large enough ?
+ 0000006B  72 11		jb	buf_size_ok                                    ;// yes
+				mWrite <"Error: Buffer too small for the file", 0dh, 0ah>
+ 00018709		     1		.data		
+ 00018709 45 72 72 6F 72     1		??0003 BYTE "Error: Buffer too small for the file", 0dh, 0ah,0	
+	   3A 20 42 75 66
+	   66 65 72 20 74
+	   6F 6F 20 73 6D
+	   61 6C 6C 20 66
+	   6F 72 20 74 68
+	   65 20 66 69 6C
+	   65 0D 0A 00
+ 0000006D		     1		.code
+ 0000006D  52		     1		push	edx
+ 0000006E  BA 00018709 R     1		mov	edx,OFFSET ??0003
+ 00000073  E8 00000000 E     1		call	WriteString
+ 00000078  5A		     1		pop	edx
+ 00000079  E9 00000177		jmp	quit                                           ;// and quit
+
+				;// Display the buffer size.
+ 0000007E			buf_size_ok:
+ 0000007E  C6 80 00000000 R	mov	buffer[eax], 0								   ;// insert null terminator
+	   00
+				mWrite "File size: "
+ 00018730		     1		.data		
+ 00018730 46 69 6C 65 20     1		??0004 BYTE "File size: ",0	
+	   73 69 7A 65 3A
+	   20 00
+ 00000085		     1		.code
+ 00000085  52		     1		push	edx
+ 00000086  BA 00018730 R     1		mov	edx,OFFSET ??0004
+ 0000008B  E8 00000000 E     1		call	WriteString
+ 00000090  5A		     1		pop	edx
+ 00000091  E8 00000000 E	call WriteDec								       ;// display file size
+ 00000096  E8 00000000 E	call Crlf
+
+				;// Display the buffer.
+				mWrite <"Buffer:", 0dh, 0ah, 0dh, 0ah>
+ 0001873C		     1		.data		
+ 0001873C 42 75 66 66 65     1		??0005 BYTE "Buffer:", 0dh, 0ah, 0dh, 0ah,0	
+	   72 3A 0D 0A 0D
+	   0A 00
+ 0000009B		     1		.code
+ 0000009B  52		     1		push	edx
+ 0000009C  BA 0001873C R     1		mov	edx,OFFSET ??0005
+ 000000A1  E8 00000000 E     1		call	WriteString
+ 000000A6  5A		     1		pop	edx
+ 000000A7  BA 00000000 R	mov	edx, OFFSET buffer							   ;// display the buffer
+ 000000AC  E8 00000000 E	call WriteString
+ 000000B1  E8 00000000 E	call Crlf
+
+ 000000B6			close_file :
+ 000000B6  A1 000186B1 R	mov	eax, fileHandle
+ 000000BB  E8 00000000 E	call CloseFile
+
+ 000000C0  FC			cld                                                ;// CLEAR DIRECTION, brise flag smera => elementima stringa se pristupa u rastucem poretku
+ 000000C1  BE 00000000 R	mov esi, OFFSET buffer                             ;// SOURCE INDEX REG. ukazuje na prvi element buffera (adresa prvog elementa u baferu) => ulaz
+ 000000C6  BF 0000C350 R	mov edi, OFFSET buffer2                            ;// DESTINATION INDEX REG. ukazuje na prvi element buffera2 (adresa prvog elementa u baferu2) => izlaz
+ 000000CB  B3 01		mov bl, 1                                          ;// '1' => samo da znamo kada je prvi upis zbog pocetnog stringa za otput fajl (samo na pocetku fajla se javlja)
+
+				;// idem redom u ulaznom fajlu .pls sve dok ne dodjem do "=" , a onda ode u novi red => to je uloga petlji preskoci i preskoci_two
+ 000000CD			preskoci :
+ 000000CD  B9 00000064		mov ecx, 100                                       ;// broj iteracija po svakoj instrukciji za rad sa stringovima; ide pointer dok ne nadje "="
+ 000000D2  B0 3D		mov al, "="
+ 000000D4  38 06		cmp [esi], al                                      ;// ako u baferu dodje do "=" to je onaj prvi red 
+ 000000D6  74 03		je preskoci_two
+ 000000D8  46			inc esi
+ 000000D9  EB F2		jmp preskoci
+
+ 000000DB			preskoci_two :                                     ;// sad idemo od "=" u redu koji nam ne treba sve do pocetka sledeceg reda
+ 000000DB  B0 0D		mov al, 0dh
+ 000000DD  38 06		cmp [esi], al
+ 000000DF  74 03		je loop1pre
+ 000000E1  46			inc esi
+ 000000E2  EB F7		jmp preskoci_two
+
+				;// ovo je nas red u kome se nalazi podatak o adresi
+ 000000E4			loop1pre :
+ 000000E4  83 C6 02		add esi, 2                                        ;// sada samo pomerimo da pokazje na "F", to je red u kome je podatak koji nam treba!
+ 000000E7			loop1 :                                            
+ 000000E7  B0 0D		mov al, 0dh                                       ;// citaj do pocetka sledeceg reda
+ 000000E9  38 06		cmp [esi], al
+ 000000EB  74 03		je firstpush                                      ;// dodjemo do kraja stringa reda File_i tj. do pocetka Title_i 
+ 000000ED  46			inc esi
+ 000000EE  EB F7		jmp loop1
+
+				;// upisivanje odg. dela File_i podatka na STEK 
+ 000000F0			firstpush :
+ 000000F0  8B C6		mov eax, esi                                      ;// ACC ce nam pomoci da se obratimo clanovima u nizu koji obradjujemo (trentno 0dh), a u ESI pamtimo gde smo stali
+ 000000F2  83 C6 02		add esi, 2                                        ;// ESI uvecamo da bi pokazivao na 'T' u Title_i redu to ce biti naredna obrada
+ 000000F5			firstpush_sub:                                   
+ 000000F5  B1 3D		mov cl, '='                                       ;// vracaj se unazad od kraja (0dh) sve dok ne detektujes "=" i to ce biti adresa
+ 000000F7  38 08		cmp [eax], cl
+ 000000F9  74 09		je loop2                                          ;// sada je podatak o adresi na steku
+ 000000FB  8A 10		mov dl, [eax]
+ 000000FD  88 14 24		mov [esp], dl                                     ;// stek raste ka nizim mem. lokacijama, ukazje na poslednju zauzetu
+ 00000100  4C			dec esp                                           ;// stek pointer pomeramo po svakom upisu na odg. nacin
+ 00000101  48			dec eax                                           ;// idemo nazad u stringu koji obradjujemo sve dok ne ocita "="
+ 00000102  EB F1		jmp firstpush_sub
+
+ 00000104			loop2 :
+ 00000104  B0 0D		mov al, 0dh                                       ;// idemo sada od 'T' (tu smo stali) tj. citamo sad do kraja Title_i reda za ime
+ 00000106  38 06		cmp [esi], al
+ 00000108  74 03		je secondpush
+ 0000010A  46			inc esi
+ 0000010B  EB F7		jmp loop2
+
+				;// upisivanje imena => Title_i na stek
+ 0000010D			secondpush :
+ 0000010D  8B C6		mov eax, esi                                      ;// ACC ce nam pomoci da se obratimo clanovima u nizu koji obradjujemo (trentno 0dh), a u ESI pamtimo gde smo stali
+ 0000010F  83 C6 02		add esi, 2                                        ;// ESI uvecamo da bi pokazivao na 'L' u Length_i redu to ce biti naredna obrada
+ 00000112  B1 3D		mov cl, '='                                       ;// idi unazad sve dok ne ocitas "=", tada ces imati celo ime
+ 00000114			secondpush_sub :
+ 00000114  38 08		cmp [eax], cl                                     ;// vracaj se unazad od kraja (0dh) sve dok ne detektujes "=" i to ce biti ime
+ 00000116  74 09		je loop3
+ 00000118  8A 10		mov dl, [eax]
+ 0000011A  88 14 24		mov [esp], dl
+ 0000011D  4C			dec esp                                           ;// stek pointer pomeramo po svakom upisu na odg. nacin
+ 0000011E  48			dec eax                                           ;// idemo nazad u stringu koji obradjujemo sve dok ne ocita "="
+ 0000011F  EB F3		jmp secondpush_sub
+
+ 00000121			loop3 :
+ 00000121  B0 0D		mov al, 0dh                                       ;// idemo po sad  kraja reda Length_i za vreme tj. MOZDA i do kraja fajla!
+ 00000123  38 06		cmp[esi], al
+ 00000125  74 09		je thirdpush
+ 00000127  B0 00		mov al, 0h                                        ;// ovo je za slucaj kada ce to biti kraj fajla
+ 00000129  38 06		cmp [esi], al
+ 0000012B  74 03		je thirdpush
+ 0000012D  46			inc esi
+ 0000012E  EB F1		jmp loop3
+
+				;// upisivanje vremena trajanja numere => Length_i na STEK
+ 00000130			thirdpush :
+ 00000130  8B C6		mov eax, esi                                      ;// ACC ce nam pomoci da se obratimo clanovima u nizu koji obradjujemo (trentno 0dh), a u ESI pamtimo gde smo stali
+ 00000132  83 C6 02		add esi, 2                                        ;// ESI uvecamo da bi pokazivao na 'F' u File_j redu (to je novi segment tj. numera) to ce biti naredna obrada
+ 00000135			thirdpush_sub :                                  
+ 00000135  B1 3D		mov cl, '='                                       ;// vracaj se unazad od kraja dok ne detektujes "=" i to ce biti vreme
+ 00000137  38 08		cmp[eax], cl
+ 00000139  74 13		je upis_buffer2                                   ;// nakon svakog obradjenog segmenta File-Title-Length upisuj to u izlazni bafer
+ 0000013B  B1 00		mov cl, 0h                                        ;// za slucaj da dodje do kraja fajla, tj. da je ovo poslednja obrada idi na obradu kraj_fajla
+ 0000013D  38 08		cmp [eax], cl
+ 0000013F  74 09		je kraj_fajla
+ 00000141  8A 10		mov dl, [eax]
+ 00000143  88 14 24		mov [esp], dl
+ 00000146  4C			dec esp                                           ;// stek pointer pomeramo po svakom upisu na odg. nacin
+ 00000147  48			dec eax                                           ;// idemo nazad u stringu koji obradjujemo sve dok ne ocita "="
+ 00000148  EB EB		jmp thirdpush_sub
+
+ 0000014A			kraj_fajla:
+ 0000014A  48			dec eax                                           ;// za slucaj da je EOF vrati se samo nazad za jedan karakter to ne stavljamo na STEK
+ 0000014B  4E			dec esi                                           ;// za slucaj da je EOF vrati se samo nazad za jedan karakter 
+ 0000014C  EB E7		jmp thirdpush_sub
+
+				;// upis u bafer2
+ 0000014E			upis_buffer2 :
+ 0000014E  8B C6		mov eax, esi
+ 00000150  80 FB 01		cmp bl, 1                                         ;// ako je prvi upis stavi kljucnu rec na pocetak izlaznog fajla => sartstring
+ 00000153  75 0C		jne upis
+ 00000155  BE 000186B5 R	mov esi, OFFSET startstring                       ;// samo za prvu iteraciju, ispis pocetne kljucne reci, zato nam je trebao ovaj brojac u LOW BASE REG. => BL
+ 0000015A  B9 0000000A		mov ecx, LENGTHOF startstring
+ 0000015F  F3/ A4		rep movsb
+
+ 00000161			upis :
+ 00000161  BE 000186BF R	mov esi, OFFSET extstring                         ;// ispis pocetka reda u kome su Length_i i Title_i
+ 00000166  B9 00000008		mov ecx, LENGTHOF extstring
+ 0000016B  F3/ A4		rep movsb
+
+ 0000016D			upis_LENGTH:
+ 0000016D  44			inc esp                                           ;// pomerimo stek pointer (trenutno na 0dh), da pokazuje na pocetni karakter koji je vrednost vremena trajanja
+ 0000016E  8A 14 24		mov dl, [esp]
+ 00000171  88 17		mov [edi], dl                                     ;// iz SP koji ukazuje na podatak na steku prebacjemo vrednost sa steka u EDI koji ukazuje na podatak u buffer2, tj. prebacujemo odg. niz podataka u izlazni bafer
+ 00000173  47			inc edi                                           ;// inkrementiramo adresu podatka u izlaznom baferu za upis novog podatka
+ 00000174  80 FA 0D		cmp dl, 0dh                                       
+ 00000177  75 F4		jne upis_LENGTH                                   ;// kraj zeljenog formata stringa (upis na steku se zavrsavao sa 0dh), vreme je sada upisano u izlazni bafer
+ 00000179  4F			dec edi                                           ;// skini ono 0dh jer cemo u istom redu upisivati i Title_i
+ 0000017A  B2 2C		mov dl, ","                                       ;// kad upisesemo vreme stavimo "," jer je takav trazeni format .m3u fajla
+ 0000017C  88 17		mov [edi], dl
+ 0000017E  47			inc edi                                           ;// inkrementiramo adresu podatka u izlaznom baferu za upis novog podatka
+
+ 0000017F			upis_TITLE :
+ 0000017F  44			inc esp                                           ;// pomerimo stek pointer (trenutno na 0dh), da pokazuje na pocetni karakter koji je vrednost imena numere
+ 00000180  8A 14 24		mov dl, [esp]
+ 00000183  88 17		mov [edi], dl                                     ;// iz SP koji ukazuje na podatak na steku prebacjemo vrednost sa steka u EDI koji ukazuje na podatak u buffer2, tj. prebacujemo odg. niz podataka u izlazni bafer
+ 00000185  47			inc edi                                           ;// inkrementiramo adresu podatka u izlaznom baferu za upis novog podatka
+ 00000186  80 FA 0D		cmp dl, 0dh                                       ;// kraj zeljenog formata stringa (upis na steku se zavrsavao sa 0dh), ime numere je sada upisano u izlazni bafer
+ 00000189  75 F4		jne upis_TITLE
+
+ 0000018B			upis_FILE :
+ 0000018B  44			inc esp                                           ;// pomerimo stek pointer (trenutno na 0dh),da pokazuje na pocetni karakter koji je vrednost adrese (putanje) numere
+ 0000018C  8A 14 24		mov dl, [esp]
+ 0000018F  88 17		mov [edi], dl                                     ;// iz SP koji ukazuje na podatak na steku prebacjemo vrednost sa steka u EDI koji ukazuje na podatak u buffer2, tj. prebacujemo odg. niz podataka u izlazni bafer
+ 00000191  47			inc edi                                           ;// inkrementiramo adresu podatka u izlaznom baferu za upis novog podatka
+ 00000192  80 FA 0D		cmp dl, 0dh                                       ;// kraj zeljenog formata stringa (upis na steku se zavrsavao sa 0dh), putanja do numere je sada upisana u izlazni bafer
+ 00000195  75 F4		jne upis_FILE
+ 00000197  FE C3		inc bl                                            ;// kada zavrsimo prvi upis inkrementiramo brojac da ne bi stalno ispisivao START string u outpt file-u
+ 00000199  8B F0		mov esi, eax                     
+ 0000019B  B1 00		mov cl, 0h
+ 0000019D  38 0E		cmp [esi], cl                                     ;// kada doodje do EOF izadji jer je upis zavrsen, u protivnom se vrtimo u petlji sve dok ne obradimo sve pakete podataka iz ulaznog fajla
+ 0000019F  0F 85 FFFFFF42	jne loop1
+
+				;// ovaj deo se odnosi na formiranje imena izlaznog fajla, na osnovu srcFilename koje korisnik unosi
+ 000001A5  FC			cld                                               ;// CLEAR DIRECTION, brise flag smera => elementima stringa se pristupa u rastucem poretku
+ 000001A6  B9 00000001		mov ecx, 1                                        ;// broj iteracija po svakoj instrukciji za rad sa stringovima
+ 000001AB  2B FF		sub edi, edi                                      ;// DESTINATION INDEX REGISTER = 0, ima ulogu pokazivaca tj. tu je adresa pocetnog elementa stringa
+ 000001AD  BF 000186A0 R	mov edi, OFFSET srcFilename                       ;// prosledimo mu offset adrese na string srcFilename, sad ukazuje na njegov pocetak
+
+				;// sad formiramo deo koji nam treba od ulaznog imena
+ 000001B2			izlaz_ime :
+ 000001B2  B0 2E		mov al, "."                                       ;// u donji bajt akumulatora ubacimo string "."
+ 000001B4  38 07		cmp [edi], al                                     ;// poredimo trenutni element u stringu sa "." 
+ 000001B6  74 03		je extenzija                                      ;// kada stigne do tacke u ulaznom imenu tu stajemo => to nam treba, sad ostaje samo da promenimo extenziju
+ 000001B8  47			inc edi                                           ;// ukoliko jos nije stigao do tacke inkrementiraj pointer
+ 000001B9  EB F7		jmp izlaz_ime                                     ;// vrati se da proveris novi element
+
+				;// ovaj deo sada sluzi da dodamo odgovarajucu extenziju za formiranje imena izlaznog fajla
+ 000001BB			extenzija :
+ 000001BB  47			inc edi                                           ;// posto edi u tom trenutku ukazuje na "."
+ 000001BC  B2 6D		mov dl, "m"                                       ;// u donji bajt DATA REGISTER-a stavimo string "m" od extenzije M3U
+ 000001BE  88 17		mov [edi], dl                                     ;// posle tacke u do sada obradjenom stringu najpre dodamo "m"
+ 000001C0  47			inc edi                                           ;// dodajemo dalje
+ 000001C1  B2 33		mov dl, "3"                                       ;// u donji bajt DATA REGISTER-a stavimo string "3" od extenzije M3U
+ 000001C3  88 17		mov [edi], dl                                     ;// posle "m" u do sada obradjenom stringu dodamo "3"
+ 000001C5  47			inc edi                                           ;// dodajemo dalje
+ 000001C6  B2 75		mov dl, "u"                                       ;// u donji bajt DATA REGISTER-a stavimo string "u" od extenzije M3U
+ 000001C8  88 17		mov [edi], dl                                     ;// posle "3" u do sada obradjenom stringu dodamo za kraj "u"
+
+				;// Create a new text file.
+ 000001CA  2B D2		sub edx, edx                                      ;// clear DATA REGISTER
+ 000001CC  BA 000186A0 R	mov	edx, OFFSET srcFilename                       ;// u DATA REG. je adresa pocetnog elementa stringa
+ 000001D1  E8 00000000 E	call CreateOutputFile                             ;// kreiramo fajl sa nazivom koji je zapravo modifikovani string srcFileName
+ 000001D6  A3 000186B1 R	mov	fileHandle, eax                               ;// handle na fajl koji smo kreirali cuvamo u odg. promenljivoj
+
+				;// Write the buffer to the output file.
+ 000001DB  A1 000186B1 R	mov	eax, fileHandle                               ;// handle na output file u koji upisujemo, smestimo u ACC
+ 000001E0  BA 0000C350 R	mov	edx, OFFSET buffer2                           ;// u Data reg. ubacimo adresu pocetnog elemenata iz bafera
+ 000001E5  B9 0000C350		mov	ecx, LENGTHOF buffer2                         ;// u counter ubacimo koliko elemenata ima ovaj bafer
+ 000001EA  81 E9 0000A81F	sub ecx, 43039                                    ;// ovaj red je napisan da ne bi bilo NULL karaktera u izlaznom fajlu. zakomentarisati !!! ukoliko se koristi neki primer drugaciji od playlista datih u okviru projekta
+ 000001F0  E8 00000000 E	call WriteToFile                                  ;// ispisujemo elemente sve dok counter ne dodje do 0, i to u izlazni fajl koji smo kreirali
+
+				;// Display the return value.
+ 000001F5			quit :
+				exit
+ 000001F5  6A 00	   *	    push   +000000000h
+ 000001F7  E8 00000000 E   *	    call   ExitProcess
+
+ 000001FC			main ENDP
+				END main
+Microsoft (R) Macro Assembler Version 14.00.23918.0	    06/15/16 19:11:58
+AddTwo.asm						     Symbols 2 - 1
+
+
+
+
+Macros:
+
+                N a m e                 Type
+
+IsDefined  . . . . . . . . . . .	Func
+Startup  . . . . . . . . . . . .	Proc
+mDumpMem . . . . . . . . . . . .	Proc
+mDump  . . . . . . . . . . . . .	Proc
+mGotoxy  . . . . . . . . . . . .	Proc
+mReadString  . . . . . . . . . .	Proc
+mShowRegister  . . . . . . . . .	Proc
+mShow  . . . . . . . . . . . . .	Proc
+mWriteLn . . . . . . . . . . . .	Proc
+mWriteSpace  . . . . . . . . . .	Proc
+mWriteString . . . . . . . . . .	Proc
+mWrite . . . . . . . . . . . . .	Proc
+
+
+Structures and Unions:
+
+                N a m e                  Size
+                                         Offset      Type
+
+CONSOLE_CURSOR_INFO  . . . . . .	 00000008
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+  bVisible . . . . . . . . . . .	 00000004	 DWord
+CONSOLE_SCREEN_BUFFER_INFO . . .	 00000016
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+  dwCursorPosition . . . . . . .	 00000004	 DWord
+  wAttributes  . . . . . . . . .	 00000008	 Word
+  srWindow . . . . . . . . . . .	 0000000A	 QWord
+  dwMaximumWindowSize  . . . . .	 00000012	 DWord
+COORD  . . . . . . . . . . . . .	 00000004
+  X  . . . . . . . . . . . . . .	 00000000	 Word
+  Y  . . . . . . . . . . . . . .	 00000002	 Word
+FILETIME . . . . . . . . . . . .	 00000008
+  loDateTime . . . . . . . . . .	 00000000	 DWord
+  hiDateTime . . . . . . . . . .	 00000004	 DWord
+FOCUS_EVENT_RECORD . . . . . . .	 00000004
+  bSetFocus  . . . . . . . . . .	 00000000	 DWord
+FPU_ENVIRON  . . . . . . . . . .	 0000001C
+  controlWord  . . . . . . . . .	 00000000	 Word
+  statusWord . . . . . . . . . .	 00000004	 Word
+  tagWord  . . . . . . . . . . .	 00000008	 Word
+  instrPointerOffset . . . . . .	 0000000C	 DWord
+  instrPointerSelector . . . . .	 00000010	 DWord
+  operandPointerOffset . . . . .	 00000014	 DWord
+  operandPointerSelector . . . .	 00000018	 Word
+INPUT_RECORD . . . . . . . . . .	 00000014
+  EventType  . . . . . . . . . .	 00000000	 Word
+  Event  . . . . . . . . . . . .	 00000004	 XmmWord
+  bKeyDown . . . . . . . . . . .	 00000000	 DWord
+  wRepeatCount . . . . . . . . .	 00000004	 Word
+  wVirtualKeyCode  . . . . . . .	 00000006	 Word
+  wVirtualScanCode . . . . . . .	 00000008	 Word
+  uChar  . . . . . . . . . . . .	 0000000A	 Word
+  UnicodeChar  . . . . . . . . .	 00000000	 Word
+  AsciiChar  . . . . . . . . . .	 00000000	 Byte
+  dwControlKeyState  . . . . . .	 0000000C	 DWord
+  dwMousePosition  . . . . . . .	 00000000	 DWord
+  dwButtonState  . . . . . . . .	 00000004	 DWord
+  dwMouseControlKeyState . . . .	 00000008	 DWord
+  dwEventFlags . . . . . . . . .	 0000000C	 DWord
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+  dwCommandId  . . . . . . . . .	 00000000	 DWord
+  bSetFocus  . . . . . . . . . .	 00000000	 DWord
+KEY_EVENT_RECORD . . . . . . . .	 00000010
+  bKeyDown . . . . . . . . . . .	 00000000	 DWord
+  wRepeatCount . . . . . . . . .	 00000004	 Word
+  wVirtualKeyCode  . . . . . . .	 00000006	 Word
+  wVirtualScanCode . . . . . . .	 00000008	 Word
+  uChar  . . . . . . . . . . . .	 0000000A	 Word
+  UnicodeChar  . . . . . . . . .	 00000000	 Word
+  AsciiChar  . . . . . . . . . .	 00000000	 Byte
+  dwControlKeyState  . . . . . .	 0000000C	 DWord
+MENU_EVENT_RECORD  . . . . . . .	 00000004
+  dwCommandId  . . . . . . . . .	 00000000	 DWord
+MOUSE_EVENT_RECORD . . . . . . .	 00000010
+  dwMousePosition  . . . . . . .	 00000000	 DWord
+  dwButtonState  . . . . . . . .	 00000004	 DWord
+  dwMouseControlKeyState . . . .	 00000008	 DWord
+  dwEventFlags . . . . . . . . .	 0000000C	 DWord
+SMALL_RECT . . . . . . . . . . .	 00000008
+  Left . . . . . . . . . . . . .	 00000000	 Word
+  Top  . . . . . . . . . . . . .	 00000002	 Word
+  Right  . . . . . . . . . . . .	 00000004	 Word
+  Bottom . . . . . . . . . . . .	 00000006	 Word
+SYSTEMTIME . . . . . . . . . . .	 00000010
+  wYear  . . . . . . . . . . . .	 00000000	 Word
+  wMonth . . . . . . . . . . . .	 00000002	 Word
+  wDayOfWeek . . . . . . . . . .	 00000004	 Word
+  wDay . . . . . . . . . . . . .	 00000006	 Word
+  wHour  . . . . . . . . . . . .	 00000008	 Word
+  wMinute  . . . . . . . . . . .	 0000000A	 Word
+  wSecond  . . . . . . . . . . .	 0000000C	 Word
+  wMilliseconds  . . . . . . . .	 0000000E	 Word
+WINDOW_BUFFER_SIZE_RECORD  . . .	 00000004
+  dwSize . . . . . . . . . . . .	 00000000	 DWord
+
+
+Segments and Groups:
+
+                N a m e                 Size     Length   Align   Combine Class
+
+FLAT . . . . . . . . . . . . . .	GROUP
+STACK  . . . . . . . . . . . . .	32 Bit	 00001000 Para	  Stack	  'STACK'	 
+_DATA  . . . . . . . . . . . . .	32 Bit	 00018748 Para	  Public  'DATA'	
+_TEXT  . . . . . . . . . . . . .	32 Bit	 000001FC Para	  Public  'CODE'	
+
+
+Procedures, parameters, and locals:
+
+                N a m e                 Type     Value    Attr
+
+CloseFile  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+CloseHandle  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Clrscr . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+CreateFileA  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+CreateOutputFile . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Crlf . . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Delay  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+DumpMem  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+DumpRegs . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ExitProcess  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FileTimeToDosDateTime  . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FileTimeToSystemTime . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FlushConsoleInputBuffer  . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+FormatMessageA . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetCommandLineA  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetCommandTail . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleCP . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleCursorInfo . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleMode . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetConsoleScreenBufferInfo . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetDateTime  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetFileTime  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetKeyState  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetLastError . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetLocalTime . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetMaxXY . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetMseconds  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetNumberOfConsoleInputEvents  .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetProcessHeap . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetStdHandle . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetSystemTime  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetTextColor . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+GetTickCount . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Gotoxy . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapAlloc  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapCreate . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapDestroy  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapFree . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+HeapSize . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+IsDigit  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+LocalFree  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+MessageBoxA  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+MsgBoxAsk  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+MsgBox . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+OpenInputFile  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ParseDecimal32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ParseInteger32 . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+PeekConsoleInputA  . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Random32 . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+RandomRange  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Randomize  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadChar . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadConsoleA . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadConsoleInputA  . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadDec  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadFile . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadFloat  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadFromFile . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadHex  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadInt  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadKeyFlush . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadKey  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ReadString . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleCursorInfo . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleCursorPosition . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleMode . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleScreenBufferSize . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleTextAttribute  . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleTitleA . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetConsoleWindowInfo . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetFilePointer . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetLocalTime . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SetTextColor . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+ShowFPUStack . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Sleep  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+StrLength  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_compare  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_copy . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_length . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_trim . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+Str_ucase  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+SystemTimeToFileTime . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WaitMsg  . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteBinB  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteBin . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteChar  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteConsoleA  . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteConsoleOutputAttribute  . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteConsoleOutputCharacterA . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteDec . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteFile  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteFloat . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteHexB  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteHex . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteInt . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteStackFrameName  . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteStackFrame  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteString  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteToFile  . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+WriteWindowsMsg  . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External STDCALL
+main . . . . . . . . . . . . . .	P Near	 00000000 _TEXT	Length= 000001FC Public STDCALL
+  file_ok  . . . . . . . . . . .	L Near	 00000042 _TEXT	
+  check_buffer_size  . . . . . .	L Near	 00000066 _TEXT	
+  buf_size_ok  . . . . . . . . .	L Near	 0000007E _TEXT	
+  close_file . . . . . . . . . .	L Near	 000000B6 _TEXT	
+  preskoci . . . . . . . . . . .	L Near	 000000CD _TEXT	
+  preskoci_two . . . . . . . . .	L Near	 000000DB _TEXT	
+  loop1pre . . . . . . . . . . .	L Near	 000000E4 _TEXT	
+  loop1  . . . . . . . . . . . .	L Near	 000000E7 _TEXT	
+  firstpush  . . . . . . . . . .	L Near	 000000F0 _TEXT	
+  firstpush_sub  . . . . . . . .	L Near	 000000F5 _TEXT	
+  loop2  . . . . . . . . . . . .	L Near	 00000104 _TEXT	
+  secondpush . . . . . . . . . .	L Near	 0000010D _TEXT	
+  secondpush_sub . . . . . . . .	L Near	 00000114 _TEXT	
+  loop3  . . . . . . . . . . . .	L Near	 00000121 _TEXT	
+  thirdpush  . . . . . . . . . .	L Near	 00000130 _TEXT	
+  thirdpush_sub  . . . . . . . .	L Near	 00000135 _TEXT	
+  kraj_fajla . . . . . . . . . .	L Near	 0000014A _TEXT	
+  upis_buffer2 . . . . . . . . .	L Near	 0000014E _TEXT	
+  upis . . . . . . . . . . . . .	L Near	 00000161 _TEXT	
+  upis_LENGTH  . . . . . . . . .	L Near	 0000016D _TEXT	
+  upis_TITLE . . . . . . . . . .	L Near	 0000017F _TEXT	
+  upis_FILE  . . . . . . . . . .	L Near	 0000018B _TEXT	
+  izlaz_ime  . . . . . . . . . .	L Near	 000001B2 _TEXT	
+  extenzija  . . . . . . . . . .	L Near	 000001BB _TEXT	
+  quit . . . . . . . . . . . . .	L Near	 000001F5 _TEXT	
+printf . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
+scanf  . . . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
+wsprintfA  . . . . . . . . . . .	P Near	 00000000 FLAT	Length= 00000000 External C
+
+
+Symbols:
+
+                N a m e                 Type     Value    Attr
+
+??0000 . . . . . . . . . . . . .	Byte	 000186C7 _DATA	
+??0001 . . . . . . . . . . . . .	Byte	 000186E1 _DATA	
+??0002 . . . . . . . . . . . . .	Byte	 000186F4 _DATA	
+??0003 . . . . . . . . . . . . .	Byte	 00018709 _DATA	
+??0004 . . . . . . . . . . . . .	Byte	 00018730 _DATA	
+??0005 . . . . . . . . . . . . .	Byte	 0001873C _DATA	
+@CodeSize  . . . . . . . . . . .	Number	 00000000h   
+@DataSize  . . . . . . . . . . .	Number	 00000000h   
+@Interface . . . . . . . . . . .	Number	 00000003h   
+@Model . . . . . . . . . . . . .	Number	 00000007h   
+@code  . . . . . . . . . . . . .	Text   	 _TEXT
+@data  . . . . . . . . . . . . .	Text   	 FLAT
+@fardata?  . . . . . . . . . . .	Text   	 FLAT
+@fardata . . . . . . . . . . . .	Text   	 FLAT
+@stack . . . . . . . . . . . . .	Text   	 FLAT
+ALT_MASK . . . . . . . . . . . .	Number	 00000003h   
+BUFFER_SIZE  . . . . . . . . . .	Number	 0000C350h   
+CAPSLOCK_ON  . . . . . . . . . .	Number	 00000080h   
+CREATE_ALWAYS  . . . . . . . . .	Number	 00000002h   
+CREATE_NEW . . . . . . . . . . .	Number	 00000001h   
+CTRL_MASK  . . . . . . . . . . .	Number	 0000000Ch   
+CreateFile . . . . . . . . . . .	Text   	 CreateFileA
+DO_NOT_SHARE . . . . . . . . . .	Number	 00000000h   
+ENABLE_ECHO_INPUT  . . . . . . .	Number	 00000004h   
+ENABLE_LINE_INPUT  . . . . . . .	Number	 00000002h   
+ENABLE_MOUSE_INPUT . . . . . . .	Number	 00000010h   
+ENABLE_PROCESSED_INPUT . . . . .	Number	 00000001h   
+ENABLE_PROCESSED_OUTPUT  . . . .	Number	 00000001h   
+ENABLE_WINDOW_INPUT  . . . . . .	Number	 00000008h   
+ENABLE_WRAP_AT_EOL_OUTPUT  . . .	Number	 00000002h   
+ENHANCED_KEY . . . . . . . . . .	Number	 00000100h   
+FALSE  . . . . . . . . . . . . .	Number	 00000000h   
+FILE_APPEND_DATA . . . . . . . .	Number	 00000004h   
+FILE_ATTRIBUTE_ARCHIVE . . . . .	Number	 00000020h   
+FILE_ATTRIBUTE_COMPRESSED  . . .	Number	 00000800h   
+FILE_ATTRIBUTE_DEVICE  . . . . .	Number	 00000040h   
+FILE_ATTRIBUTE_DIRECTORY . . . .	Number	 00000010h   
+FILE_ATTRIBUTE_ENCRYPTED . . . .	Number	 00004000h   
+FILE_ATTRIBUTE_HIDDEN  . . . . .	Number	 00000002h   
+FILE_ATTRIBUTE_NORMAL  . . . . .	Number	 00000080h   
+FILE_ATTRIBUTE_NOT_CONTENT_INDEXED .	Number	 00002000h   
+FILE_ATTRIBUTE_OFFLINE . . . . .	Number	 00001000h   
+FILE_ATTRIBUTE_READONLY  . . . .	Number	 00000001h   
+FILE_ATTRIBUTE_REPARSE_POINT . .	Number	 00000400h   
+FILE_ATTRIBUTE_SPARSE_FILE . . .	Number	 00000200h   
+FILE_ATTRIBUTE_SYSTEM  . . . . .	Number	 00000004h   
+FILE_ATTRIBUTE_TEMPORARY . . . .	Number	 00000100h   
+FILE_BEGIN . . . . . . . . . . .	Number	 00000000h   
+FILE_CURRENT . . . . . . . . . .	Number	 00000001h   
+FILE_DELETE_CHILD  . . . . . . .	Number	 00000040h   
+FILE_END . . . . . . . . . . . .	Number	 00000002h   
+FILE_READ_DATA . . . . . . . . .	Number	 00000001h   
+FILE_SHARE_DELETE  . . . . . . .	Number	 00000004h   
+FILE_SHARE_READ  . . . . . . . .	Number	 00000001h   
+FILE_SHARE_WRITE . . . . . . . .	Number	 00000002h   
+FILE_WRITE_DATA  . . . . . . . .	Number	 00000002h   
+FOCUS_EVENT  . . . . . . . . . .	Number	 00000010h   
+FORMAT_MESSAGE_ALLOCATE_BUFFER .	Number	 00000100h   
+FORMAT_MESSAGE_FROM_SYSTEM . . .	Number	 00001000h   
+FormatMessage  . . . . . . . . .	Text   	 FormatMessageA
+GENERIC_ALL  . . . . . . . . . .	Number	 10000000h   
+GENERIC_EXECUTE  . . . . . . . .	Number	 20000000h   
+GENERIC_READ . . . . . . . . . .	Number	 -80000000h   
+GENERIC_WRITE  . . . . . . . . .	Number	 40000000h   
+GetCommandLine . . . . . . . . .	Text   	 GetCommandLineA
+HANDLE . . . . . . . . . . . . .	Text   	 DWORD
+HEAP_GENERATE_EXCEPTIONS . . . .	Number	 00000004h   
+HEAP_GROWABLE  . . . . . . . . .	Number	 00000002h   
+HEAP_NO_SERIALIZE  . . . . . . .	Number	 00000001h   
+HEAP_REALLOC_IN_PLACE_ONLY . . .	Number	 00000010h   
+HEAP_ZERO_MEMORY . . . . . . . .	Number	 00000008h   
+IDABORT  . . . . . . . . . . . .	Number	 00000003h   
+IDCANCEL . . . . . . . . . . . .	Number	 00000002h   
+IDCLOSE  . . . . . . . . . . . .	Number	 00000008h   
+IDCONTINUE . . . . . . . . . . .	Number	 0000000Bh   
+IDHELP . . . . . . . . . . . . .	Number	 00000009h   
+IDIGNORE . . . . . . . . . . . .	Number	 00000005h   
+IDNO . . . . . . . . . . . . . .	Number	 00000007h   
+IDOK . . . . . . . . . . . . . .	Number	 00000001h   
+IDRETRY  . . . . . . . . . . . .	Number	 00000004h   
+IDTIMEOUT  . . . . . . . . . . .	Number	 00007D00h   
+IDTRYAGAIN . . . . . . . . . . .	Number	 0000000Ah   
+IDYES  . . . . . . . . . . . . .	Number	 00000006h   
+INVALID_HANDLE_VALUE . . . . . .	Number	 -00000001h   
+KBDOWN_FLAG  . . . . . . . . . .	Number	 00000001h   
+KEY_EVENT  . . . . . . . . . . .	Number	 00000001h   
+KEY_MASKS  . . . . . . . . . . .	Number	 0000001Fh   
+LEFT_ALT_PRESSED . . . . . . . .	Number	 00000002h   
+LEFT_CTRL_PRESSED  . . . . . . .	Number	 00000008h   
+MB_ABORTRETRYIGNORE  . . . . . .	Number	 00000002h   
+MB_APPLMODAL . . . . . . . . . .	Number	 00000000h   
+MB_CANCELTRYCONTINUE . . . . . .	Number	 00000006h   
+MB_DEFBUTTON1  . . . . . . . . .	Number	 00000000h   
+MB_DEFBUTTON2  . . . . . . . . .	Number	 00000100h   
+MB_DEFBUTTON3  . . . . . . . . .	Number	 00000200h   
+MB_DEFBUTTON4  . . . . . . . . .	Number	 00000300h   
+MB_HELP  . . . . . . . . . . . .	Number	 00004000h   
+MB_ICONASTERISK  . . . . . . . .	Number	 00000040h   
+MB_ICONERROR . . . . . . . . . .	Number	 00000010h   
+MB_ICONEXCLAMATION . . . . . . .	Number	 00000030h   
+MB_ICONHAND  . . . . . . . . . .	Number	 00000010h   
+MB_ICONINFORMATION . . . . . . .	Number	 00000040h   
+MB_ICONQUESTION  . . . . . . . .	Number	 00000020h   
+MB_ICONSTOP  . . . . . . . . . .	Number	 00000010h   
+MB_ICONWARNING . . . . . . . . .	Number	 00000030h   
+MB_OKCANCEL  . . . . . . . . . .	Number	 00000001h   
+MB_OK  . . . . . . . . . . . . .	Number	 00000000h   
+MB_RETRYCANCEL . . . . . . . . .	Number	 00000005h   
+MB_SYSTEMMODAL . . . . . . . . .	Number	 00001000h   
+MB_TASKMODAL . . . . . . . . . .	Number	 00002000h   
+MB_USERICON  . . . . . . . . . .	Number	 00000080h   
+MB_YESNOCANCEL . . . . . . . . .	Number	 00000003h   
+MB_YESNO . . . . . . . . . . . .	Number	 00000004h   
+MENU_EVENT . . . . . . . . . . .	Number	 00000008h   
+MOUSE_EVENT  . . . . . . . . . .	Number	 00000002h   
+MessageBox . . . . . . . . . . .	Text   	 MessageBoxA
+NULL . . . . . . . . . . . . . .	Number	 00000000h   
+NUMLOCK_ON . . . . . . . . . . .	Number	 00000020h   
+OPEN_ALWAYS  . . . . . . . . . .	Number	 00000004h   
+OPEN_EXISTING  . . . . . . . . .	Number	 00000003h   
+PeekConsoleInput . . . . . . . .	Text   	 PeekConsoleInputA
+RIGHT_ALT_PRESSED  . . . . . . .	Number	 00000001h   
+RIGHT_CTRL_PRESSED . . . . . . .	Number	 00000004h   
+ReadConsoleInput . . . . . . . .	Text   	 ReadConsoleInputA
+ReadConsole  . . . . . . . . . .	Text   	 ReadConsoleA
+SCROLLLOCK_ON  . . . . . . . . .	Number	 00000040h   
+SHIFT_MASK . . . . . . . . . . .	Number	 00000010h   
+SHIFT_PRESSED  . . . . . . . . .	Number	 00000010h   
+STD_ERROR_HANDLE . . . . . . . .	Number	 -0000000Ch   
+STD_INPUT_HANDLE . . . . . . . .	Number	 -0000000Ah   
+STD_OUTPUT_HANDLE  . . . . . . .	Number	 -0000000Bh   
+SetConsoleTitle  . . . . . . . .	Text   	 SetConsoleTitleA
+TAB  . . . . . . . . . . . . . .	Number	 00000009h   
+TRUE . . . . . . . . . . . . . .	Number	 00000001h   
+TRUNCATE_EXISTING  . . . . . . .	Number	 00000005h   
+VK_11  . . . . . . . . . . . . .	Number	 000000BDh   
+VK_12  . . . . . . . . . . . . .	Number	 000000BBh   
+VK_ADD . . . . . . . . . . . . .	Number	 0000006Bh   
+VK_BACK  . . . . . . . . . . . .	Number	 00000008h   
+VK_CANCEL  . . . . . . . . . . .	Number	 00000003h   
+VK_CAPITAL . . . . . . . . . . .	Number	 00000014h   
+VK_CLEAR . . . . . . . . . . . .	Number	 0000000Ch   
+VK_CONTROL . . . . . . . . . . .	Number	 00000011h   
+VK_DECIMAL . . . . . . . . . . .	Number	 0000006Eh   
+VK_DELETE  . . . . . . . . . . .	Number	 0000002Eh   
+VK_DIVIDE  . . . . . . . . . . .	Number	 0000006Fh   
+VK_DOWN  . . . . . . . . . . . .	Number	 00000028h   
+VK_END . . . . . . . . . . . . .	Number	 00000023h   
+VK_ESCAPE  . . . . . . . . . . .	Number	 0000001Bh   
+VK_EXECUTE . . . . . . . . . . .	Number	 0000002Bh   
+VK_F10 . . . . . . . . . . . . .	Number	 00000079h   
+VK_F11 . . . . . . . . . . . . .	Number	 0000007Ah   
+VK_F12 . . . . . . . . . . . . .	Number	 0000007Bh   
+VK_F13 . . . . . . . . . . . . .	Number	 0000007Ch   
+VK_F14 . . . . . . . . . . . . .	Number	 0000007Dh   
+VK_F15 . . . . . . . . . . . . .	Number	 0000007Eh   
+VK_F16 . . . . . . . . . . . . .	Number	 0000007Fh   
+VK_F17 . . . . . . . . . . . . .	Number	 00000080h   
+VK_F18 . . . . . . . . . . . . .	Number	 00000081h   
+VK_F19 . . . . . . . . . . . . .	Number	 00000082h   
+VK_F1  . . . . . . . . . . . . .	Number	 00000070h   
+VK_F20 . . . . . . . . . . . . .	Number	 00000083h   
+VK_F21 . . . . . . . . . . . . .	Number	 00000084h   
+VK_F22 . . . . . . . . . . . . .	Number	 00000085h   
+VK_F23 . . . . . . . . . . . . .	Number	 00000086h   
+VK_F24 . . . . . . . . . . . . .	Number	 00000087h   
+VK_F2  . . . . . . . . . . . . .	Number	 00000071h   
+VK_F3  . . . . . . . . . . . . .	Number	 00000072h   
+VK_F4  . . . . . . . . . . . . .	Number	 00000073h   
+VK_F5  . . . . . . . . . . . . .	Number	 00000074h   
+VK_F6  . . . . . . . . . . . . .	Number	 00000075h   
+VK_F7  . . . . . . . . . . . . .	Number	 00000076h   
+VK_F8  . . . . . . . . . . . . .	Number	 00000077h   
+VK_F9  . . . . . . . . . . . . .	Number	 00000078h   
+VK_HELP  . . . . . . . . . . . .	Number	 0000002Fh   
+VK_HOME  . . . . . . . . . . . .	Number	 00000024h   
+VK_INSERT  . . . . . . . . . . .	Number	 0000002Dh   
+VK_LBUTTON . . . . . . . . . . .	Number	 00000001h   
+VK_LCONTROL  . . . . . . . . . .	Number	 000000A2h   
+VK_LEFT  . . . . . . . . . . . .	Number	 00000025h   
+VK_LMENU . . . . . . . . . . . .	Number	 000000A4h   
+VK_LSHIFT  . . . . . . . . . . .	Number	 000000A0h   
+VK_MENU  . . . . . . . . . . . .	Number	 00000012h   
+VK_MULTIPLY  . . . . . . . . . .	Number	 0000006Ah   
+VK_NEXT  . . . . . . . . . . . .	Number	 00000022h   
+VK_NUMLOCK . . . . . . . . . . .	Number	 00000090h   
+VK_NUMPAD0 . . . . . . . . . . .	Number	 00000060h   
+VK_NUMPAD1 . . . . . . . . . . .	Number	 00000061h   
+VK_NUMPAD2 . . . . . . . . . . .	Number	 00000062h   
+VK_NUMPAD3 . . . . . . . . . . .	Number	 00000063h   
+VK_NUMPAD4 . . . . . . . . . . .	Number	 00000064h   
+VK_NUMPAD5 . . . . . . . . . . .	Number	 00000065h   
+VK_NUMPAD6 . . . . . . . . . . .	Number	 00000066h   
+VK_NUMPAD7 . . . . . . . . . . .	Number	 00000067h   
+VK_NUMPAD8 . . . . . . . . . . .	Number	 00000068h   
+VK_NUMPAD9 . . . . . . . . . . .	Number	 00000069h   
+VK_PAUSE . . . . . . . . . . . .	Number	 00000013h   
+VK_PRINT . . . . . . . . . . . .	Number	 0000002Ah   
+VK_PRIOR . . . . . . . . . . . .	Number	 00000021h   
+VK_RBUTTON . . . . . . . . . . .	Number	 00000002h   
+VK_RCONTROL  . . . . . . . . . .	Number	 000000A3h   
+VK_RETURN  . . . . . . . . . . .	Number	 0000000Dh   
+VK_RIGHT . . . . . . . . . . . .	Number	 00000027h   
+VK_RMENU . . . . . . . . . . . .	Number	 000000A5h   
+VK_RSHIFT  . . . . . . . . . . .	Number	 000000A1h   
+VK_SCROLL  . . . . . . . . . . .	Number	 00000091h   
+VK_SEPARATER . . . . . . . . . .	Number	 0000006Ch   
+VK_SHIFT . . . . . . . . . . . .	Number	 00000010h   
+VK_SNAPSHOT  . . . . . . . . . .	Number	 0000002Ch   
+VK_SPACE . . . . . . . . . . . .	Number	 00000020h   
+VK_SUBTRACT  . . . . . . . . . .	Number	 0000006Dh   
+VK_TAB . . . . . . . . . . . . .	Number	 00000009h   
+VK_UP  . . . . . . . . . . . . .	Number	 00000026h   
+WINDOW_BUFFER_SIZE_EVENT . . . .	Number	 00000004h   
+WriteConsoleOutputCharacter  . .	Text   	 WriteConsoleOutputCharacterA
+WriteConsole . . . . . . . . . .	Text   	 WriteConsoleA
+black  . . . . . . . . . . . . .	Number	 00000000h   
+blue . . . . . . . . . . . . . .	Number	 00000001h   
+brown  . . . . . . . . . . . . .	Number	 00000006h   
+buffer2  . . . . . . . . . . . .	Byte	 0000C350 _DATA	
+buffer . . . . . . . . . . . . .	Byte	 00000000 _DATA	
+cyan . . . . . . . . . . . . . .	Number	 00000003h   
+exit . . . . . . . . . . . . . .	Text   	 INVOKE ExitProcess,0
+extstring  . . . . . . . . . . .	Byte	 000186BF _DATA	
+fileHandle . . . . . . . . . . .	DWord	 000186B1 _DATA	
+gray . . . . . . . . . . . . . .	Number	 00000008h   
+green  . . . . . . . . . . . . .	Number	 00000002h   
+lightBlue  . . . . . . . . . . .	Number	 00000009h   
+lightCyan  . . . . . . . . . . .	Number	 0000000Bh   
+lightGray  . . . . . . . . . . .	Number	 00000007h   
+lightGreen . . . . . . . . . . .	Number	 0000000Ah   
+lightMagenta . . . . . . . . . .	Number	 0000000Dh   
+lightRed . . . . . . . . . . . .	Number	 0000000Ch   
+magenta  . . . . . . . . . . . .	Number	 00000005h   
+red  . . . . . . . . . . . . . .	Number	 00000004h   
+srcFilename  . . . . . . . . . .	Byte	 000186A0 _DATA	
+startstring  . . . . . . . . . .	Byte	 000186B5 _DATA	
+white  . . . . . . . . . . . . .	Number	 0000000Fh   
+wsprintf . . . . . . . . . . . .	Text   	 wsprintfA
+yellow . . . . . . . . . . . . .	Number	 0000000Eh   
+
+	   0 Warnings
+	   0 Errors
